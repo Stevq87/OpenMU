@@ -10,7 +10,7 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "openmu.postgresSelectorLabels" . | nindent 4 }}
+      {{- include "openmu.postgresSelectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
