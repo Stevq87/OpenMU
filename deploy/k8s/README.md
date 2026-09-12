@@ -41,10 +41,10 @@ kubectl delete ns openmu-lab
 kubectl apply -k deploy/k8s
 ```
 
-If PVCs stay Pending (no default StorageClass), Helm with
-`--set postgres.persistence.enabled=false --set openmu.persistence.adminKeys.enabled=false`
-(emptyDir; data is lost on restart). Do not install a cluster-wide provisioner
-from this chart.
+If the lab has **no StorageClass** (this kubeadm lab), postgres uses **hostPath**
+(`/var/lib/openmu-lab/postgres`) and admin keys use **emptyDir**. Do not install
+a cluster-wide provisioner from this chart. Pin postgres to one worker so the
+hostPath stays on the same node (`values-lab.yaml`).
 
 ## kind (local)
 

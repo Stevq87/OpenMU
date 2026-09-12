@@ -83,12 +83,19 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-      {{- if not .Values.postgres.persistence.enabled }}
+      {{- $ptype := include "openmu.postgresPersistenceType" . }}
+      {{- if ne $ptype "pvc" }}
       volumes:
         - name: data
+          {{- if eq $ptype "hostPath" }}
+          hostPath:
+            path: {{ .Values.postgres.persistence.hostPath | quote }}
+            type: DirectoryOrCreate
+          {{- else }}
           emptyDir: {}
+          {{- end }}
       {{- end }}
-  {{- if .Values.postgres.persistence.enabled }}
+  {{- if eq (include "openmu.postgresPersistenceType" .) "pvc" }}
   volumeClaimTemplates:
     - metadata:
         name: data

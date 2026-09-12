@@ -1,52 +1,42 @@
 # Overlay for the shared kubeadm lab test-01.k8s.t-h.cloud
-# (1 CP 4CPU/3.8Gi + 3 workers 2CPU/3.8Gi, Calico, Ubuntu 24.04).
+# (1 CP 4CPU/3.8Gi + 3 workers; Calico; NO StorageClass).
 #
 #   helm install openmu deploy/helm/openmu -n openmu-lab --create-namespace \
 #     -f deploy/helm/openmu/values-lab.yaml
 #
-# Dedicated namespace only. Do not install Dapr/ingress/operators cluster-wide.
-# Keep pods off the control plane. hostPort binds player ports on the worker
-# that draws the OpenMU pod — point the client at that worker's public IP.
+# Allocatable RAM: worker-02 ~2.8Gi, worker-01/03 ~1.16Gi. Pin OpenMU (~1Gi RSS)
+# on worker-02. Postgres hostPath on worker-03. Keep off the tainted CP.
+# InternalIPs are the public addresses; empty resolveIP → Custom = hostIP.
 #
-# Workers: 185.126.137.16 / 45.146.123.74 / 185.126.224.78
-# CP (do not schedule): 62.216.75.149  kube-apiserver :6443
-#
-# If PVCs stay Pending (no default StorageClass seen from the node), install with
-# --set postgres.persistence.enabled=false --set openmu.persistence.adminKeys.enabled=false
+# Connect: 45.146.123.74:44405 (original) / :44406 (OSS)
 
 serverName: Lab
 resolveIP: ""
 
 openmu:
+  persistence:
+    adminKeys:
+      type: emptyDir
   resources:
     requests:
       cpu: 50m
       memory: 256Mi
     limits:
-      cpu: 400m
-      memory: 1024Mi
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: node-role.kubernetes.io/control-plane
-                operator: DoesNotExist
+      cpu: "1"
+      memory: 1280Mi
+  nodeSelector:
+    kubernetes.io/hostname: lin-worker-02
 
 postgres:
   persistence:
-    size: 1Gi
+    type: hostPath
+    hostPath: /var/lib/openmu-lab/postgres
   resources:
     requests:
       cpu: 25m
       memory: 64Mi
     limits:
       cpu: 150m
-      memory: 256Mi
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: node-role.kubernetes.io/control-plane
-                operator: DoesNotExist
+      memory: 384Mi
+  nodeSelector:
+    kubernetes.io/hostname: lin-worker-03

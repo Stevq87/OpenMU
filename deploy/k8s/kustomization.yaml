@@ -8,6 +8,5 @@ resources:
   - postgres-statefulset.yaml
   - openmu-configmap.yaml
   - openmu-secret.yaml
-  - openmu-pvc.yaml
   - openmu-deployment.yaml
   - openmu-services.yaml

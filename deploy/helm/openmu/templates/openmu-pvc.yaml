@@ -1,4 +1,4 @@
-{{- if .Values.openmu.persistence.adminKeys.enabled }}
+{{- if eq (include "openmu.adminKeysPersistenceType" .) "pvc" }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

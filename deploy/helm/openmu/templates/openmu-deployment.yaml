@@ -98,7 +98,7 @@ spec:
                 export RESOLVE_IP="${NODE_IP}"
               fi
               echo "RESOLVE_IP=${RESOLVE_IP} SERVER_NAME=${SERVER_NAME}"
-              exec dotnet MUnique.OpenMU.Startup.dll -autostart -version:{{ .Values.gameVersion }}
+              exec dotnet MUnique.OpenMU.Startup.dll -autostart -version:{{ .Values.gameVersion }} -resolveIP:${RESOLVE_IP}
           ports:
             - name: admin
               containerPort: {{ .Values.ports.admin }}
@@ -191,7 +191,8 @@ spec:
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
             failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /
               port: admin
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
             failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
@@ -201,9 +202,14 @@ spec:
               drop: ["ALL"]
       volumes:
         - name: admin-keys
-          {{- if .Values.openmu.persistence.adminKeys.enabled }}
+          {{- $ktype := include "openmu.adminKeysPersistenceType" . }}
+          {{- if eq $ktype "pvc" }}
           persistentVolumeClaim:
             claimName: {{ include "openmu.adminKeysPvcName" . }}
+          {{- else if eq $ktype "hostPath" }}
+          hostPath:
+            path: {{ .Values.openmu.persistence.adminKeys.hostPath | quote }}
+            type: DirectoryOrCreate
           {{- else }}
           emptyDir: {}
           {{- end }}

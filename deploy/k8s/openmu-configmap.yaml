@@ -15,4 +15,4 @@ data:
   Database__AssumeExternallyProvisioned: "true"
   DOTNET_EnableDiagnostics: "0"
   DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "false"
-  DOTNET_GCHeapHardLimit: "536870912"
+  DOTNET_GCHeapHardLimit: "805306368"

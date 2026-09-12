@@ -76,9 +76,10 @@ app.kubernetes.io/component: openmu
 {{- printf "%s-admin-keys" (include "openmu.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{/*
-hostPort is only valid with replicaCount: 1 (one pod can bind the node ports).
-*/}}
-{{- define "openmu.gamePorts" -}}
-{{- .Values.ports.game | toJson }}
+{{- define "openmu.postgresPersistenceType" -}}
+{{- default "hostPath" .Values.postgres.persistence.type -}}
+{{- end }}
+
+{{- define "openmu.adminKeysPersistenceType" -}}
+{{- default "emptyDir" .Values.openmu.persistence.adminKeys.type -}}
 {{- end }}

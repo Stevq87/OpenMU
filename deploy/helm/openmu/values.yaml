@@ -1,15 +1,13 @@
 # Shared kubeadm lab defaults: one tenant, 1 replica, dedicated namespace.
-# Total *requests* ≈ 75m CPU / 320Mi so OpenMU + Postgres can schedule together
-# on a 2-CPU / 3.8Gi worker next to kube-system + Calico. No HPA. Dapr off.
-# Do not install cluster-wide operators with this chart.
-# Raise openmu.resources.limits.memory if the pod OOMKills during Season 6 seed.
+# Total *requests* ≈ 75m CPU / 320Mi. OpenMU limit ~1.25Gi matches Phase 1 RSS.
+# No StorageClass: postgres uses hostPath, admin keys emptyDir.
+# Do not install cluster-wide operators. Dapr off.
 
 serverName: Lab
 
 # Advertised address the game client uses after server selection.
-# Empty = node's hostIP (correct with hostPort / NodePort on a lab VM).
-# Do not use "local" in Kubernetes — that resolves to the Pod IP.
-# Other: loopback | public | a dotted IPv4 / hostname.
+# Empty = node's hostIP (Custom resolver; disables DB/ipify reconfigure).
+# Do not use "local" (Pod IP) or "public" (ipify hangs / wrong NAT address).
 resolveIP: ""
 
 image:
@@ -19,23 +17,21 @@ image:
 
 replicaCount: 1
 
-# Optional bootstrap user for the admin panel. Matches the all-in-one compose README.
 admin:
   username: admin
   password: openmu
   totpSecret: ""
 
-# Season 6 is the OpenMU default. Only used on first-time database initialization.
 gameVersion: season6
 
-# Keep the database that PostgreSQL already created; only run migrations + seed.
-# Required in Kubernetes (the postgres role cannot DROP the DB it lives in as cleanly
-# as on a local compose superuser workflow, and it avoids an extra DROP/CREATE).
+# Pre-created POSTGRES_DB=openmu; skip DROP/CREATE DATABASE. Migrations still
+# CREATE ROLE config/account/friend/guild (needs the postgres superuser).
 assumeExternallyProvisioned: true
 
 postgres:
   image:
     repository: postgres
+    # Pin a major; compose's unpinned "postgres" floated to 18.6 in Phase 1.
     tag: "16-alpine"
     pullPolicy: IfNotPresent
   auth:
@@ -43,11 +39,11 @@ postgres:
     password: admin
     database: openmu
   persistence:
-    enabled: true
+    # hostPath | emptyDir | pvc  (this lab has no StorageClass)
+    type: hostPath
+    hostPath: /var/lib/openmu-lab/postgres
     size: 1Gi
     storageClass: ""
-    # If the lab has no StorageClass, set enabled: false (emptyDir; data is lost on restart).
-  # Small-VM PostgreSQL knobs (official image CMD is `postgres`).
   extraArgs:
     - -c
     - shared_buffers=16MB
@@ -67,7 +63,7 @@ postgres:
       memory: 64Mi
     limits:
       cpu: 150m
-      memory: 256Mi
+      memory: 384Mi
   podSecurityContext:
     fsGroup: 70
     fsGroupChangePolicy: OnRootMismatch
@@ -78,18 +74,19 @@ postgres:
 openmu:
   persistence:
     adminKeys:
-      enabled: true
+      type: emptyDir # emptyDir | hostPath | pvc
+      hostPath: /var/lib/openmu-lab/admin-keys
       size: 32Mi
       storageClass: ""
-  # Cap the .NET GC so the process stays under the container limit on small nodes.
-  gcHeapHardLimit: "536870912" # 512 MiB
+  # Phase 1 all-in-one ~1Gi RSS; cap GC under the container limit.
+  gcHeapHardLimit: "805306368" # 768 MiB
   resources:
     requests:
       cpu: 50m
       memory: 256Mi
     limits:
-      cpu: 400m
-      memory: 1024Mi
+      cpu: "1"
+      memory: 1280Mi
   podSecurityContext:
     fsGroup: 1000
     fsGroupChangePolicy: OnRootMismatch
@@ -116,12 +113,10 @@ service:
   # Player ports: hostPort on the node so 44405/55901/… match the OpenMU database
   # without expanding the cluster NodePort range (30000–32767 by default).
   hostPort: true
-  # In-cluster Services for ConnectServer / GameServer / ChatServer stay ClusterIP.
   type: ClusterIP
   admin:
     type: NodePort
     nodePort: 30080
-  # Used only when hostPort is false and type is NodePort. Must be in the cluster range.
   nodePorts:
     connect: 30405
     connectOpenSource: 30406
@@ -134,15 +129,13 @@ service:
       - 30905
       - 30906
 
-# OpenMU does not currently speak UDP; listed so a future protocol can opt in.
+# OpenMU does not currently speak UDP.
 udpPorts: []
 
 namespace:
   create: false
   name: ""
 
-# Upstream distributed/Dapr compose is broken and unsupported. All-in-one does not
-# need Dapr. Left off to keep lab RAM down; do not enable on small VMs.
 dapr:
   enabled: false
 

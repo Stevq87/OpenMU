@@ -22,6 +22,8 @@ spec:
         app.kubernetes.io/component: openmu
     spec:
       automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/hostname: lin-worker-02
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
@@ -67,7 +69,7 @@ spec:
                 export RESOLVE_IP="${NODE_IP}"
               fi
               echo "RESOLVE_IP=${RESOLVE_IP} SERVER_NAME=${SERVER_NAME}"
-              exec dotnet MUnique.OpenMU.Startup.dll -autostart -version:season6
+              exec dotnet MUnique.OpenMU.Startup.dll -autostart -version:season6 -resolveIP:${RESOLVE_IP}
           ports:
             - name: admin
               containerPort: 8080
@@ -151,8 +153,8 @@ spec:
               cpu: 50m
               memory: 256Mi
             limits:
-              cpu: 400m
-              memory: 1024Mi
+              cpu: "1"
+              memory: 1280Mi
           startupProbe:
             tcpSocket:
               port: connect
@@ -164,7 +166,8 @@ spec:
             periodSeconds: 10
             failureThreshold: 6
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /
               port: admin
             periodSeconds: 30
             failureThreshold: 4
@@ -174,7 +177,6 @@ spec:
               drop: ["ALL"]
       volumes:
         - name: admin-keys
-          persistentVolumeClaim:
-            claimName: openmu-admin-keys
+          emptyDir: {}
         - name: logs
           emptyDir: {}

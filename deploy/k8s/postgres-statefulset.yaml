@@ -21,6 +21,8 @@ spec:
         app.kubernetes.io/component: postgres
     spec:
       automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/hostname: lin-worker-03
       securityContext:
         fsGroup: 70
         fsGroupChangePolicy: OnRootMismatch
@@ -72,7 +74,7 @@ spec:
               memory: 64Mi
             limits:
               cpu: 150m
-              memory: 256Mi
+              memory: 384Mi
           startupProbe:
             exec:
               command: ["pg_isready", "-U", "postgres"]
@@ -90,14 +92,8 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-  volumeClaimTemplates:
-    - metadata:
-        name: data
-        labels:
-          app.kubernetes.io/name: openmu
-          app.kubernetes.io/component: postgres
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        resources:
-          requests:
-            storage: 1Gi
+      volumes:
+        - name: data
+          hostPath:
+            path: /var/lib/openmu-lab/postgres
+            type: DirectoryOrCreate
