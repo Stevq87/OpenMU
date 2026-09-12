@@ -1,0 +1,27 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Local secrets — never commit kubeconfig, keys, or filled .env
+.env
+.env.local
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+kubeconfig
+*.kubeconfig
+
+# Root OpenMU gitignore ignores *.txt; keep Python requirement files if added
+!backend/requirements.txt
