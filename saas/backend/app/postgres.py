@@ -1,8 +1,19 @@
 """Read and update OpenMU game parameters in tenant PostgreSQL.
 
-Tables live in schema `config` (GameConfiguration, DropItemGroup,
-MonsterSpawnArea, MiniGameDefinition). When no DSN is configured the API
-still returns the payload shape with `source=defaults`.
+Phase 1 tables (schema `config`, quoted identifiers):
+
+- Rates: `GameConfiguration` (ExperienceRate, MasterExperienceRate, MaximumLevel,
+  MaximumMasterLevel, ExcellentItemDropLevelDelta, ItemDropDuration,
+  ShouldDropMoney, MaximumItemOptionLevelDrop) and per-GS
+  `GameServerDefinition.ExperienceRate`.
+- Drops: `DropItemGroup` (+ join tables not edited here).
+- Spawns: `MonsterSpawnArea` (quantity / box) joined to `MonsterDefinition`,
+  `GameMapDefinition`.
+- Events: `MiniGameDefinition`.
+- Endpoints (not edited here): `ConnectServerDefinition.ClientListenerPort`,
+  `GameServerEndpoint.NetworkPort`, `ChatServerEndpoint.NetworkPort`.
+
+GET still returns the payload shape with `source=defaults` when no DSN exists.
 """
 
 from __future__ import annotations
@@ -24,6 +35,7 @@ from app.models import (
     EventUpdate,
     GameEvent,
     GameRates,
+    GameServerRate,
     SpawnArea,
     SpawnListResponse,
     SpawnUpdate,
@@ -100,6 +112,7 @@ class GameStore:
                 row = conn.execute(
                     """
                     SELECT "ExperienceRate", "MasterExperienceRate",
+                           "MaximumLevel", "MaximumMasterLevel",
                            "MaximumItemOptionLevelDrop", "ExcellentItemDropLevelDelta",
                            "ShouldDropMoney",
                            EXTRACT(EPOCH FROM "ItemDropDuration") AS drop_secs
@@ -107,20 +120,19 @@ class GameStore:
                     LIMIT 1
                     """
                 ).fetchone()
+                servers = conn.execute(
+                    """
+                    SELECT "ServerID" AS server_id, "Description" AS description,
+                           "ExperienceRate" AS experience_rate
+                    FROM config."GameServerDefinition"
+                    ORDER BY "ServerID"
+                    """
+                ).fetchall()
         except DatabaseUnavailable as exc:
             return GameRates(database_error=_error_text(exc))
         if not row:
             return GameRates(source="postgresql", persisted=False, database_error="GameConfiguration is empty.")
-        return GameRates(
-            experience_rate=row["ExperienceRate"] or 1.0,
-            master_experience_rate=row["MasterExperienceRate"] or 1.0,
-            maximum_item_option_level_drop=int(row["MaximumItemOptionLevelDrop"] or 0),
-            excellent_item_drop_level_delta=int(row["ExcellentItemDropLevelDelta"] or 0),
-            should_drop_money=bool(row["ShouldDropMoney"]),
-            item_drop_duration_seconds=int(row["drop_secs"] or 60),
-            source="postgresql",
-            persisted=True,
-        )
+        return _rates_from_row(row, servers)
 
     def put_rates(self, namespace: str, rates: GameRates) -> GameRates:
         with self._connect(namespace) as conn:
@@ -129,29 +141,40 @@ class GameStore:
                 UPDATE config."GameConfiguration"
                 SET "ExperienceRate" = %(experience_rate)s,
                     "MasterExperienceRate" = %(master_experience_rate)s,
+                    "MaximumLevel" = %(maximum_level)s,
+                    "MaximumMasterLevel" = %(maximum_master_level)s,
                     "MaximumItemOptionLevelDrop" = %(maximum_item_option_level_drop)s,
                     "ExcellentItemDropLevelDelta" = %(excellent_item_drop_level_delta)s,
                     "ShouldDropMoney" = %(should_drop_money)s,
                     "ItemDropDuration" = make_interval(secs => %(item_drop_duration_seconds)s)
                 RETURNING "ExperienceRate", "MasterExperienceRate",
+                          "MaximumLevel", "MaximumMasterLevel",
                           "MaximumItemOptionLevelDrop", "ExcellentItemDropLevelDelta",
                           "ShouldDropMoney",
                           EXTRACT(EPOCH FROM "ItemDropDuration") AS drop_secs
                 """,
-                rates.model_dump(),
+                rates.model_dump(exclude={"game_servers", "source", "persisted", "database_error"}),
             ).fetchone()
+            for gs in rates.game_servers:
+                conn.execute(
+                    """
+                    UPDATE config."GameServerDefinition"
+                    SET "ExperienceRate" = %(experience_rate)s
+                    WHERE "ServerID" = %(server_id)s
+                    """,
+                    {"server_id": gs.server_id, "experience_rate": gs.experience_rate},
+                )
+            servers = conn.execute(
+                """
+                SELECT "ServerID" AS server_id, "Description" AS description,
+                       "ExperienceRate" AS experience_rate
+                FROM config."GameServerDefinition"
+                ORDER BY "ServerID"
+                """
+            ).fetchall()
         if not row:
             raise DatabaseUnavailable("UPDATE hit 0 GameConfiguration rows.")
-        return GameRates(
-            experience_rate=row["ExperienceRate"],
-            master_experience_rate=row["MasterExperienceRate"],
-            maximum_item_option_level_drop=int(row["MaximumItemOptionLevelDrop"]),
-            excellent_item_drop_level_delta=int(row["ExcellentItemDropLevelDelta"]),
-            should_drop_money=bool(row["ShouldDropMoney"]),
-            item_drop_duration_seconds=int(row["drop_secs"] or 60),
-            source="postgresql",
-            persisted=True,
-        )
+        return _rates_from_row(row, servers)
 
     def list_drops(self, namespace: str) -> DropListResponse:
         if not self.dsn(namespace):
@@ -304,6 +327,22 @@ class GameStore:
         if not row:
             raise DatabaseUnavailable(f"MiniGameDefinition {event_id} was not found.")
         return GameEvent(**_stringify(row))
+
+
+def _rates_from_row(row: dict[str, Any], servers: list[dict[str, Any]]) -> GameRates:
+    return GameRates(
+        experience_rate=row["ExperienceRate"] or 1.0,
+        master_experience_rate=row["MasterExperienceRate"] or 1.0,
+        maximum_level=int(row["MaximumLevel"] or 400),
+        maximum_master_level=int(row["MaximumMasterLevel"] or 200),
+        maximum_item_option_level_drop=int(row["MaximumItemOptionLevelDrop"] or 0),
+        excellent_item_drop_level_delta=int(row["ExcellentItemDropLevelDelta"] or 0),
+        should_drop_money=bool(row["ShouldDropMoney"]),
+        item_drop_duration_seconds=int(row["drop_secs"] or 60),
+        game_servers=[GameServerRate(**gs) for gs in servers],
+        source="postgresql",
+        persisted=True,
+    )
 
 
 def _error_text(exc: DatabaseUnavailable) -> str:

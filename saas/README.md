@@ -4,9 +4,17 @@ Lightweight FastAPI + React admin for a **one-tenant Kubernetes lab**. Code live
 
 The intended cluster API (not a secret) is:
 
-`https://api.test-01.k8s.t-h.cloud:6443`
+`https://62.216.75.149:6443` (SNI `api.test-01.k8s.t-h.cloud`)
 
-(same endpoint on the control-plane public IP: `https://62.216.75.149:6443`). Auth is **not** in this repo. Point the Python client at a **local kubeconfig path** when credentials exist.
+Auth is **not** in this repo. Copy a kubeconfig to a local path, `chmod 600`, and point FastAPI at it:
+
+```bash
+cp /path/to/config.ip /tmp/kubeconfig
+chmod 600 /tmp/kubeconfig
+export SAAS_KUBECONFIG=/tmp/kubeconfig
+```
+
+The kubeconfig `cluster.server` must be the IP URL above; `tls-server-name` must be `api.test-01.k8s.t-h.cloud`. Do not commit that file.
 
 ## How to run locally
 
@@ -42,9 +50,9 @@ Panel: http://127.0.0.1:5173 — Vite proxies `/api` to the FastAPI process.
 Do **not** commit kubeconfig, client certs, tokens, or SSH keys.
 
 ```bash
-export SAAS_KUBECONFIG=/path/to/lab.kubeconfig   # or KUBECONFIG
-export SAAS_KUBE_CONTEXT=test-01                 # optional
-export SAAS_K8S_API_SERVER=https://api.test-01.k8s.t-h.cloud:6443
+export SAAS_KUBECONFIG=/tmp/kubeconfig            # chmod 600 copy; never commit
+export SAAS_K8S_API_SERVER=https://62.216.75.149:6443
+export SAAS_K8S_TLS_SERVER_NAME=api.test-01.k8s.t-h.cloud
 ```
 
 The kubeconfig `clusters[].cluster.server` should be that `:6443` URL. FastAPI loads **only** from `SAAS_KUBECONFIG` / `KUBECONFIG` (then in-cluster if the panel itself is a pod). It does **not** read `~/.kube/config`, `admin.conf`, or SSH keys.
@@ -85,12 +93,12 @@ If the cluster is connected, the API also looks for a `postgres` / `postgresql` 
 | GET | `/api/tenants/{ns}/deployments` | Deployments |
 | POST | `/api/tenants/{ns}/deployments/{name}/restart` | Rollout restart (1 replica) |
 | GET | `/api/tenants/{ns}/endpoints` | Assigned IP / NodePort / LoadBalancer |
-| GET/PUT | `/api/tenants/{ns}/game/rates` | `GameConfiguration` rates/drops flags |
-| GET | `/api/tenants/{ns}/game/drops` | `DropItemGroup` |
+| GET/PUT | `/api/tenants/{ns}/game/rates` | `config.GameConfiguration` + `GameServerDefinition.ExperienceRate` |
+| GET | `/api/tenants/{ns}/game/drops` | `config.DropItemGroup` |
 | PUT | `/api/tenants/{ns}/game/drops/{id}` | Update chance |
-| GET | `/api/tenants/{ns}/game/spawns` | `MonsterSpawnArea` |
+| GET | `/api/tenants/{ns}/game/spawns` | `config.MonsterSpawnArea` |
 | PUT | `/api/tenants/{ns}/game/spawns/{id}` | Update quantity |
-| GET | `/api/tenants/{ns}/game/events` | `MiniGameDefinition` |
+| GET | `/api/tenants/{ns}/game/events` | `config.MiniGameDefinition` |
 | PUT | `/api/tenants/{ns}/game/events/{id}` | Update fee / player cap |
 | POST | `/api/servers` | **Stub** — validates provision body, returns **501** (no Helm install) |
 

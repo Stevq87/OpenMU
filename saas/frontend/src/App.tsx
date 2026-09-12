@@ -16,10 +16,13 @@ type Page = "status" | "rates" | "drops" | "spawns" | "events" | "provision";
 const EMPTY_RATES: GameRates = {
   experience_rate: 1,
   master_experience_rate: 1,
-  maximum_item_option_level_drop: 4,
+  maximum_level: 400,
+  maximum_master_level: 200,
+  maximum_item_option_level_drop: 3,
   excellent_item_drop_level_delta: 25,
   should_drop_money: true,
   item_drop_duration_seconds: 60,
+  game_servers: [],
   source: "defaults",
   persisted: false,
   database_error: null,
@@ -410,6 +413,24 @@ function RatesPage({
         />
       </label>
       <label>
+        Maximum level
+        <input
+          type="number"
+          min={1}
+          value={rates.maximum_level}
+          onChange={(e) => setRates({ ...rates, maximum_level: Number(e.target.value) })}
+        />
+      </label>
+      <label>
+        Maximum master level
+        <input
+          type="number"
+          min={1}
+          value={rates.maximum_master_level}
+          onChange={(e) => setRates({ ...rates, maximum_master_level: Number(e.target.value) })}
+        />
+      </label>
+      <label>
         Max item option level drop
         <input
           type="number"
@@ -446,6 +467,12 @@ function RatesPage({
         />
         Monsters drop zen on the ground
       </label>
+      {rates.game_servers.length > 0 && (
+        <p className="muted">
+          Per-GS `GameServerDefinition.ExperienceRate`:{" "}
+          {rates.game_servers.map((gs) => `#${gs.server_id}×${gs.experience_rate}`).join(", ")}
+        </p>
+      )}
       <button type="submit">Save rates</button>
     </form>
   );

@@ -35,7 +35,16 @@ OPENMU_NAME_HINTS = (
 )
 
 SYSTEM_NAMESPACES = frozenset(
-    {"kube-system", "kube-public", "kube-node-lease", "local-path-storage", "ingress-nginx"}
+    {
+        "kube-system",
+        "kube-public",
+        "kube-node-lease",
+        "local-path-storage",
+        "ingress-nginx",
+        "calico-system",
+        "tigera-operator",
+        "default",
+    }
 )
 
 
@@ -68,7 +77,7 @@ class Cluster:
                     self.error = (
                         f"Kubeconfig not found at {path}. "
                         f"Create a local file pointing at {self.settings.k8s_api_server} "
-                        "(do not commit it). Auth is not in the store yet."
+                        "(do not commit it)."
                     )
                     return
                 kwargs: dict[str, Any] = {"config_file": path}
@@ -76,6 +85,7 @@ class Cluster:
                     kwargs["context"] = self.settings.kube_context
                 config.load_kube_config(**kwargs)
                 self.mode = "kubeconfig"
+                self._apply_lab_sni()
             else:
                 try:
                     config.load_incluster_config()
@@ -105,6 +115,15 @@ class Cluster:
             self.error = str(exc)
             self._core = None
             self._apps = None
+
+    def _apply_lab_sni(self) -> None:
+        """config.ip talks to the CP IP; the cert is for api.test-01.k8s.t-h.cloud."""
+        configuration = client.Configuration.get_default_copy()
+        if configuration.tls_server_name:
+            return
+        if self.settings.k8s_tls_server_name:
+            configuration.tls_server_name = self.settings.k8s_tls_server_name
+            client.Configuration.set_default(configuration)
 
     def require(self) -> tuple[client.CoreV1Api, client.AppsV1Api]:
         if self._core is None or self._apps is None:

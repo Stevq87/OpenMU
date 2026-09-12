@@ -15,7 +15,7 @@ def test_health_reports_disconnected_cluster() -> None:
     assert body["kubernetes"]["connected"] is False
     assert body["kubernetes"]["lab_mode"] is True
     assert body["kubernetes"]["lab_namespace"] == "openmu-lab"
-    assert body["kubernetes"]["api_server"] == "https://api.test-01.k8s.t-h.cloud:6443"
+    assert body["kubernetes"]["api_server"] == "https://62.216.75.149:6443"
     assert body["kubernetes"]["kubeconfig_path"] is None
     assert "SAAS_KUBECONFIG" in (body["kubernetes"]["error"] or "")
     assert "SAAS_PG_HOST" in (body["database"]["error"] or "")
@@ -99,7 +99,8 @@ def test_settings_lab_defaults() -> None:
     assert settings.lab_mode is True
     assert settings.lab_namespace == "openmu-lab"
     assert settings.max_tenants == 1
-    assert settings.k8s_api_server == "https://api.test-01.k8s.t-h.cloud:6443"
+    assert settings.k8s_api_server == "https://62.216.75.149:6443"
+    assert settings.k8s_tls_server_name == "api.test-01.k8s.t-h.cloud"
     assert settings.kubeconfig is None
 
 
@@ -122,3 +123,19 @@ def test_client_stays_namespace_scoped() -> None:
     assert "list_namespace(" not in source
     assert "list_node(" not in source
     assert "read_namespace(" not in source
+
+
+def test_lab_kubeconfig_namespaced_list() -> None:
+    import os
+
+    path = "/tmp/kubeconfig"
+    if not os.path.isfile(path):
+        return
+    from app.cluster import Cluster
+    from app.settings import Settings
+
+    cluster = Cluster(Settings.model_validate({"kubeconfig": path}))
+    assert cluster.connected, cluster.error
+    tenants = cluster.list_tenants()
+    assert tenants
+    assert all(t.namespace == "openmu-lab" for t in tenants)

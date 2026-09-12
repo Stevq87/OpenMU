@@ -79,13 +79,22 @@ export type TenantDetail = TenantSummary & {
   deployments: DeploymentInfo[];
 };
 
+export type GameServerRate = {
+  server_id: number;
+  description: string | null;
+  experience_rate: number;
+};
+
 export type GameRates = {
   experience_rate: number;
   master_experience_rate: number;
+  maximum_level: number;
+  maximum_master_level: number;
   maximum_item_option_level_drop: number;
   excellent_item_drop_level_delta: number;
   should_drop_money: boolean;
   item_drop_duration_seconds: number;
+  game_servers: GameServerRate[];
   source: "postgresql" | "defaults";
   persisted: boolean;
   database_error: string | null;

@@ -105,13 +105,24 @@ class RestartResponse(BaseModel):
     message: str
 
 
+class GameServerRate(BaseModel):
+    server_id: int
+    description: str | None = None
+    experience_rate: float = Field(default=1.0, ge=0.1, le=10_000)
+
+
 class GameRates(BaseModel):
+    """Maps to config.GameConfiguration (+ optional config.GameServerDefinition)."""
+
     experience_rate: float = Field(default=1.0, ge=0.1, le=10_000)
     master_experience_rate: float = Field(default=1.0, ge=0.1, le=10_000)
-    maximum_item_option_level_drop: int = Field(default=4, ge=0, le=15)
+    maximum_level: int = Field(default=400, ge=1, le=1000)
+    maximum_master_level: int = Field(default=200, ge=1, le=1000)
+    maximum_item_option_level_drop: int = Field(default=3, ge=0, le=15)
     excellent_item_drop_level_delta: int = Field(default=25, ge=0, le=255)
     should_drop_money: bool = True
     item_drop_duration_seconds: int = Field(default=60, ge=1, le=3600)
+    game_servers: list[GameServerRate] = Field(default_factory=list)
     source: Literal["postgresql", "defaults"] = "defaults"
     persisted: bool = False
     database_error: str | None = None

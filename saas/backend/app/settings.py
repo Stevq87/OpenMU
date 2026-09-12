@@ -13,8 +13,9 @@ from functools import lru_cache
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Public lab API only — never a credential. Auth stays in a local kubeconfig file.
-DEFAULT_LAB_API_SERVER = "https://api.test-01.k8s.t-h.cloud:6443"
+# Public lab API (IP). SNI is api.test-01.k8s.t-h.cloud and lives in the kubeconfig.
+DEFAULT_LAB_API_SERVER = "https://62.216.75.149:6443"
+DEFAULT_LAB_TLS_SERVER_NAME = "api.test-01.k8s.t-h.cloud"
 
 
 class Settings(BaseSettings):
@@ -44,7 +45,12 @@ class Settings(BaseSettings):
     k8s_api_server: str = Field(
         default=DEFAULT_LAB_API_SERVER,
         validation_alias="SAAS_K8S_API_SERVER",
-        description="Lab Kubernetes API URL (host:6443). Used as the intended cluster; auth is not in git.",
+        description="Lab Kubernetes API URL. Cloud VMs use the CP public IP :6443.",
+    )
+    k8s_tls_server_name: str = Field(
+        default=DEFAULT_LAB_TLS_SERVER_NAME,
+        validation_alias="SAAS_K8S_TLS_SERVER_NAME",
+        description="SNI for the lab API cert. kubeconfig tls-server-name should match.",
     )
     k8s_node_ip: str | None = Field(
         default=None,
