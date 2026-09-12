@@ -307,6 +307,8 @@ doc/*.htm
 
 # text files; for documentation etc. use markdown
 *.txt
+# Helm chart notes (NOTES.txt is required by Helm)
+!deploy/helm/**/*.txt
 
 # bundles
 src/AdminPanel/wwwroot/content/css/app.css

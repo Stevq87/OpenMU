@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: openmu-lab
+resources:
+  - namespace.yaml
+  - postgres-secret.yaml
+  - postgres-service.yaml
+  - postgres-statefulset.yaml
+  - openmu-configmap.yaml
+  - openmu-secret.yaml
+  - openmu-pvc.yaml
+  - openmu-deployment.yaml
+  - openmu-services.yaml

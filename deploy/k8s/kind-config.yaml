@@ -1,0 +1,55 @@
+# kind cluster for local apply of deploy/k8s (optional; not the remote lab).
+# Player ports are mapped to the host. listenAddress 0.0.0.0 so 127.127.127.127 works
+# with OpenMU's loopback resolver (the game client rejects 127.0.0.1).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: openmu-lab
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiServer:
+          extraArgs:
+            service-node-port-range: "30000-55980"
+    extraPortMappings:
+      - containerPort: 44405
+        hostPort: 44405
+        protocol: TCP
+        listenAddress: "0.0.0.0"
+      - containerPort: 44406
+        hostPort: 44406
+        protocol: TCP
+        listenAddress: "0.0.0.0"
+      - containerPort: 55901
+        hostPort: 55901
+        protocol: TCP
+        listenAddress: "0.0.0.0"
+      - containerPort: 55902
+        hostPort: 55902
+        protocol: TCP
+        listenAddress: "0.0.0.0"
+      - containerPort: 55903
+        hostPort: 55903
+        protocol: TCP
+        listenAddress: "0.0.0.0"
+      - containerPort: 55904
+        hostPort: 55904
+        protocol: TCP
+        listenAddress: "0.0.0.0"
+      - containerPort: 55905
+        hostPort: 55905
+        protocol: TCP
+        listenAddress: "0.0.0.0"
+      - containerPort: 55906
+        hostPort: 55906
+        protocol: TCP
+        listenAddress: "0.0.0.0"
+      - containerPort: 55980
+        hostPort: 55980
+        protocol: TCP
+        listenAddress: "0.0.0.0"
+      - containerPort: 30080
+        hostPort: 30080
+        protocol: TCP
+        listenAddress: "0.0.0.0"

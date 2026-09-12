@@ -1,0 +1,9 @@
+{{- if .Values.namespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "openmu.namespace" . }}
+  labels:
+    {{- include "openmu.labels" . | nindent 4 }}
+    openmu.saas/role: tenant
+{{- end }}

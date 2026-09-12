@@ -1,0 +1,20 @@
+apiVersion: v2
+name: openmu
+description: >
+  One isolated OpenMU tenant for Kubernetes. Maps the supported all-in-one
+  docker-compose stack (PostgreSQL + the munique/openmu process that hosts
+  ConnectServer, GameServer, ChatServer and the admin panel) into a Namespace.
+type: application
+version: 0.1.0
+appVersion: "latest"
+kubeVersion: ">=1.25.0-0"
+keywords:
+  - openmu
+  - mu-online
+  - game-server
+home: https://github.com/MUnique/OpenMU
+sources:
+  - https://github.com/MUnique/OpenMU
+maintainers:
+  - name: OpenMU SaaS
+    url: https://github.com/Stevq87/OpenMU

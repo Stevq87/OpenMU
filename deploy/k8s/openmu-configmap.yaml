@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openmu-config
+  namespace: openmu-lab
+  labels:
+    app.kubernetes.io/name: openmu
+    app.kubernetes.io/component: openmu
+    openmu.saas/server-name: Lab
+data:
+  SERVER_NAME: Lab
+  ASPNETCORE_URLS: http://+:8080
+  ASPNETCORE_ENVIRONMENT: Production
+  DB_HOST: openmu-postgres
+  Database__AssumeExternallyProvisioned: "true"
+  DOTNET_EnableDiagnostics: "0"
+  DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: "false"
+  DOTNET_GCHeapHardLimit: "536870912"

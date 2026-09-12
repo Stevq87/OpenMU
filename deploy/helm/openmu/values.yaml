@@ -1,0 +1,177 @@
+# Shared kubeadm lab defaults: one tenant, 1 replica, dedicated namespace.
+# Total *requests* ≈ 75m CPU / 320Mi so OpenMU + Postgres can schedule together
+# on a 2-CPU / 3.8Gi worker next to kube-system + Calico. No HPA. Dapr off.
+# Do not install cluster-wide operators with this chart.
+# Raise openmu.resources.limits.memory if the pod OOMKills during Season 6 seed.
+
+serverName: Lab
+
+# Advertised address the game client uses after server selection.
+# Empty = node's hostIP (correct with hostPort / NodePort on a lab VM).
+# Do not use "local" in Kubernetes — that resolves to the Pod IP.
+# Other: loopback | public | a dotted IPv4 / hostname.
+resolveIP: ""
+
+image:
+  repository: munique/openmu
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# Optional bootstrap user for the admin panel. Matches the all-in-one compose README.
+admin:
+  username: admin
+  password: openmu
+  totpSecret: ""
+
+# Season 6 is the OpenMU default. Only used on first-time database initialization.
+gameVersion: season6
+
+# Keep the database that PostgreSQL already created; only run migrations + seed.
+# Required in Kubernetes (the postgres role cannot DROP the DB it lives in as cleanly
+# as on a local compose superuser workflow, and it avoids an extra DROP/CREATE).
+assumeExternallyProvisioned: true
+
+postgres:
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    username: postgres
+    password: admin
+    database: openmu
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+    # If the lab has no StorageClass, set enabled: false (emptyDir; data is lost on restart).
+  # Small-VM PostgreSQL knobs (official image CMD is `postgres`).
+  extraArgs:
+    - -c
+    - shared_buffers=16MB
+    - -c
+    - max_connections=20
+    - -c
+    - work_mem=1MB
+    - -c
+    - maintenance_work_mem=16MB
+    - -c
+    - effective_cache_size=64MB
+    - -c
+    - wal_buffers=4MB
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 150m
+      memory: 256Mi
+  podSecurityContext:
+    fsGroup: 70
+    fsGroupChangePolicy: OnRootMismatch
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+openmu:
+  persistence:
+    adminKeys:
+      enabled: true
+      size: 32Mi
+      storageClass: ""
+  # Cap the .NET GC so the process stays under the container limit on small nodes.
+  gcHeapHardLimit: "536870912" # 512 MiB
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 400m
+      memory: 1024Mi
+  podSecurityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+  extraEnv: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+ports:
+  admin: 8080
+  connect: 44405
+  connectOpenSource: 44406
+  chat: 55980
+  # Fresh Season 6 init listens on 55901–55903; 55904–55906 exist when more game servers are installed.
+  game:
+    - 55901
+    - 55902
+    - 55903
+    - 55904
+    - 55905
+    - 55906
+
+service:
+  # Player ports: hostPort on the node so 44405/55901/… match the OpenMU database
+  # without expanding the cluster NodePort range (30000–32767 by default).
+  hostPort: true
+  # In-cluster Services for ConnectServer / GameServer / ChatServer stay ClusterIP.
+  type: ClusterIP
+  admin:
+    type: NodePort
+    nodePort: 30080
+  # Used only when hostPort is false and type is NodePort. Must be in the cluster range.
+  nodePorts:
+    connect: 30405
+    connectOpenSource: 30406
+    chat: 30980
+    game:
+      - 30901
+      - 30902
+      - 30903
+      - 30904
+      - 30905
+      - 30906
+
+# OpenMU does not currently speak UDP; listed so a future protocol can opt in.
+udpPorts: []
+
+namespace:
+  create: false
+  name: ""
+
+# Upstream distributed/Dapr compose is broken and unsupported. All-in-one does not
+# need Dapr. Left off to keep lab RAM down; do not enable on small VMs.
+dapr:
+  enabled: false
+
+ingress:
+  enabled: false
+  className: ""
+  hosts:
+    - host: openmu.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+probes:
+  startup:
+    periodSeconds: 10
+    failureThreshold: 90 # 15 min — first-time Season 6 seed on a small VM
+  readiness:
+    periodSeconds: 10
+    failureThreshold: 6
+  liveness:
+    periodSeconds: 30
+    failureThreshold: 4
+
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+serviceAccount:
+  create: false
+  name: ""
+  automount: false

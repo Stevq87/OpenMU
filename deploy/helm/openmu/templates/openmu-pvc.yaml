@@ -1,0 +1,17 @@
+{{- if .Values.openmu.persistence.adminKeys.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "openmu.adminKeysPvcName" . }}
+  labels:
+    {{- include "openmu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openmu
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- if .Values.openmu.persistence.adminKeys.storageClass }}
+  storageClassName: {{ .Values.openmu.persistence.adminKeys.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.openmu.persistence.adminKeys.size }}
+{{- end }}

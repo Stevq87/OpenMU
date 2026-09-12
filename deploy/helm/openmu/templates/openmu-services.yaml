@@ -1,0 +1,101 @@
+{{- $root := . }}
+{{- $useNodePort := and (eq .Values.service.type "NodePort") (not .Values.service.hostPort) }}
+---
+# ConnectServer (TCP 44405 original client, 44406 open-source client)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openmu.fullname" . }}-connect
+  labels:
+    {{- include "openmu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: connectserver
+spec:
+  type: {{ ternary "NodePort" .Values.service.type $useNodePort }}
+  selector:
+    {{- include "openmu.openmuSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: connect
+      port: {{ .Values.ports.connect }}
+      targetPort: connect
+      protocol: TCP
+      {{- if $useNodePort }}
+      nodePort: {{ .Values.service.nodePorts.connect }}
+      {{- end }}
+    - name: connect-oss
+      port: {{ .Values.ports.connectOpenSource }}
+      targetPort: connect-oss
+      protocol: TCP
+      {{- if $useNodePort }}
+      nodePort: {{ .Values.service.nodePorts.connectOpenSource }}
+      {{- end }}
+---
+# GameServer listener ports (TCP). One Service covers GS1–GS6.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openmu.fullname" . }}-game
+  labels:
+    {{- include "openmu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gameserver
+spec:
+  type: {{ ternary "NodePort" .Values.service.type $useNodePort }}
+  selector:
+    {{- include "openmu.openmuSelectorLabels" . | nindent 4 }}
+  ports:
+    {{- range $i, $port := .Values.ports.game }}
+    - name: game-{{ $port }}
+      port: {{ $port }}
+      targetPort: game-{{ $port }}
+      protocol: TCP
+      {{- if $useNodePort }}
+      nodePort: {{ index $root.Values.service.nodePorts.game $i }}
+      {{- end }}
+    {{- end }}
+    {{- range .Values.udpPorts }}
+    - name: udp-{{ . }}
+      port: {{ . }}
+      targetPort: udp-{{ . }}
+      protocol: UDP
+    {{- end }}
+---
+# ChatServer (in-game messenger)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openmu.fullname" . }}-chat
+  labels:
+    {{- include "openmu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chatserver
+spec:
+  type: {{ ternary "NodePort" .Values.service.type $useNodePort }}
+  selector:
+    {{- include "openmu.openmuSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: chat
+      port: {{ .Values.ports.chat }}
+      targetPort: chat
+      protocol: TCP
+      {{- if $useNodePort }}
+      nodePort: {{ .Values.service.nodePorts.chat }}
+      {{- end }}
+---
+# Admin panel (HTTP). NodePort 30080 stays inside the default 30000–32767 range.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openmu.fullname" . }}-admin
+  labels:
+    {{- include "openmu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: adminpanel
+spec:
+  type: {{ .Values.service.admin.type }}
+  selector:
+    {{- include "openmu.openmuSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: admin
+      port: {{ .Values.ports.admin }}
+      targetPort: admin
+      protocol: TCP
+      {{- if and (eq .Values.service.admin.type "NodePort") .Values.service.admin.nodePort }}
+      nodePort: {{ .Values.service.admin.nodePort }}
+      {{- end }}

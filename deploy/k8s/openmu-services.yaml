@@ -1,0 +1,108 @@
+# ConnectServer, GameServer and ChatServer run inside the all-in-one OpenMU
+# process (munique/openmu). Separate Services keep the same TCP ports as compose.
+# OpenMU does not speak UDP today.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openmu-connect
+  namespace: openmu-lab
+  labels:
+    app.kubernetes.io/name: openmu
+    app.kubernetes.io/component: connectserver
+    openmu.saas/server-name: Lab
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: openmu
+    app.kubernetes.io/component: openmu
+  ports:
+    - name: connect
+      port: 44405
+      targetPort: connect
+      protocol: TCP
+    - name: connect-oss
+      port: 44406
+      targetPort: connect-oss
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openmu-game
+  namespace: openmu-lab
+  labels:
+    app.kubernetes.io/name: openmu
+    app.kubernetes.io/component: gameserver
+    openmu.saas/server-name: Lab
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: openmu
+    app.kubernetes.io/component: openmu
+  ports:
+    - name: game-55901
+      port: 55901
+      targetPort: game-55901
+      protocol: TCP
+    - name: game-55902
+      port: 55902
+      targetPort: game-55902
+      protocol: TCP
+    - name: game-55903
+      port: 55903
+      targetPort: game-55903
+      protocol: TCP
+    - name: game-55904
+      port: 55904
+      targetPort: game-55904
+      protocol: TCP
+    - name: game-55905
+      port: 55905
+      targetPort: game-55905
+      protocol: TCP
+    - name: game-55906
+      port: 55906
+      targetPort: game-55906
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openmu-chat
+  namespace: openmu-lab
+  labels:
+    app.kubernetes.io/name: openmu
+    app.kubernetes.io/component: chatserver
+    openmu.saas/server-name: Lab
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: openmu
+    app.kubernetes.io/component: openmu
+  ports:
+    - name: chat
+      port: 55980
+      targetPort: chat
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openmu-admin
+  namespace: openmu-lab
+  labels:
+    app.kubernetes.io/name: openmu
+    app.kubernetes.io/component: adminpanel
+    openmu.saas/server-name: Lab
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: openmu
+    app.kubernetes.io/component: openmu
+  ports:
+    - name: admin
+      port: 8080
+      targetPort: admin
+      protocol: TCP
+      nodePort: 30080

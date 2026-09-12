@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openmu-lab
+  labels:
+    app.kubernetes.io/name: openmu
+    app.kubernetes.io/part-of: openmu-saas
+    openmu.saas/role: tenant
+    openmu.saas/server-name: Lab

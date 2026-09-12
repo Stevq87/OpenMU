@@ -1,0 +1,211 @@
+{{- if and .Values.service.hostPort (gt (int .Values.replicaCount) 1) }}
+{{- fail "service.hostPort requires replicaCount: 1 (one pod can bind the node ports)" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openmu.fullname" . }}
+  labels:
+    {{- include "openmu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: openmu
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "openmu.openmuSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "openmu.openmuSelectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/openmu-configmap.yaml") . | sha256sum }}
+        checksum/postgres-secret: {{ include (print $.Template.BasePath "/postgres-secret.yaml") . | sha256sum }}
+        checksum/admin-secret: {{ include (print $.Template.BasePath "/openmu-secret.yaml") . | sha256sum }}
+        {{- if .Values.dapr.enabled }}
+        dapr.io/enabled: "true"
+        dapr.io/app-id: {{ printf "%s-openmu" (include "openmu.fullname" .) | quote }}
+        dapr.io/app-port: {{ .Values.ports.admin | quote }}
+        dapr.io/enable-api-logging: "false"
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.openmu.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.openmu.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.openmu.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.openmu.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-postgres
+          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - until pg_isready -h {{ include "openmu.postgresName" . }} -U "$POSTGRES_USER"; do echo waiting for postgres; sleep 2; done
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openmu.postgresSecretName" . }}
+                  key: POSTGRES_USER
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openmu.postgresSecretName" . }}
+                  key: POSTGRES_DB
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openmu.postgresSecretName" . }}
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: openmu
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              if [ -z "${RESOLVE_IP}" ]; then
+                export RESOLVE_IP="${NODE_IP}"
+              fi
+              echo "RESOLVE_IP=${RESOLVE_IP} SERVER_NAME=${SERVER_NAME}"
+              exec dotnet MUnique.OpenMU.Startup.dll -autostart -version:{{ .Values.gameVersion }}
+          ports:
+            - name: admin
+              containerPort: {{ .Values.ports.admin }}
+              protocol: TCP
+            - name: connect
+              containerPort: {{ .Values.ports.connect }}
+              protocol: TCP
+              {{- if .Values.service.hostPort }}
+              hostPort: {{ .Values.ports.connect }}
+              {{- end }}
+            - name: connect-oss
+              containerPort: {{ .Values.ports.connectOpenSource }}
+              protocol: TCP
+              {{- if .Values.service.hostPort }}
+              hostPort: {{ .Values.ports.connectOpenSource }}
+              {{- end }}
+            - name: chat
+              containerPort: {{ .Values.ports.chat }}
+              protocol: TCP
+              {{- if .Values.service.hostPort }}
+              hostPort: {{ .Values.ports.chat }}
+              {{- end }}
+            {{- range $i, $port := .Values.ports.game }}
+            - name: game-{{ $port }}
+              containerPort: {{ $port }}
+              protocol: TCP
+              {{- if $.Values.service.hostPort }}
+              hostPort: {{ $port }}
+              {{- end }}
+            {{- end }}
+            {{- range .Values.udpPorts }}
+            - name: udp-{{ . }}
+              containerPort: {{ . }}
+              protocol: UDP
+              {{- if $.Values.service.hostPort }}
+              hostPort: {{ . }}
+              {{- end }}
+            {{- end }}
+          env:
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DB_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openmu.postgresSecretName" . }}
+                  key: DB_ADMIN_USER
+            - name: DB_ADMIN_PW
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openmu.postgresSecretName" . }}
+                  key: DB_ADMIN_PW
+            - name: OPENMU_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openmu.adminSecretName" . }}
+                  key: OPENMU_ADMIN_USER
+            - name: OPENMU_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openmu.adminSecretName" . }}
+                  key: OPENMU_ADMIN_PASSWORD
+            - name: OPENMU_ADMIN_TOTP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openmu.adminSecretName" . }}
+                  key: OPENMU_ADMIN_TOTP_SECRET
+            {{- with .Values.openmu.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "openmu.configMapName" . }}
+          volumeMounts:
+            - name: admin-keys
+              mountPath: /app/data-protection-keys
+            - name: logs
+              mountPath: /app/logs
+          resources:
+            {{- toYaml .Values.openmu.resources | nindent 12 }}
+          startupProbe:
+            tcpSocket:
+              port: connect
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          readinessProbe:
+            tcpSocket:
+              port: connect
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          livenessProbe:
+            tcpSocket:
+              port: admin
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: admin-keys
+          {{- if .Values.openmu.persistence.adminKeys.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "openmu.adminKeysPvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: logs
+          emptyDir: {}

@@ -1,0 +1,180 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openmu
+  namespace: openmu-lab
+  labels:
+    app.kubernetes.io/name: openmu
+    app.kubernetes.io/component: openmu
+    openmu.saas/server-name: Lab
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openmu
+      app.kubernetes.io/component: openmu
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openmu
+        app.kubernetes.io/component: openmu
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - until pg_isready -h openmu-postgres -U "$POSTGRES_USER"; do echo waiting for postgres; sleep 2; done
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: openmu-postgres
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openmu-postgres
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: openmu
+          image: munique/openmu:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              if [ -z "${RESOLVE_IP}" ]; then
+                export RESOLVE_IP="${NODE_IP}"
+              fi
+              echo "RESOLVE_IP=${RESOLVE_IP} SERVER_NAME=${SERVER_NAME}"
+              exec dotnet MUnique.OpenMU.Startup.dll -autostart -version:season6
+          ports:
+            - name: admin
+              containerPort: 8080
+              protocol: TCP
+            - name: connect
+              containerPort: 44405
+              hostPort: 44405
+              protocol: TCP
+            - name: connect-oss
+              containerPort: 44406
+              hostPort: 44406
+              protocol: TCP
+            - name: chat
+              containerPort: 55980
+              hostPort: 55980
+              protocol: TCP
+            - name: game-55901
+              containerPort: 55901
+              hostPort: 55901
+              protocol: TCP
+            - name: game-55902
+              containerPort: 55902
+              hostPort: 55902
+              protocol: TCP
+            - name: game-55903
+              containerPort: 55903
+              hostPort: 55903
+              protocol: TCP
+            - name: game-55904
+              containerPort: 55904
+              hostPort: 55904
+              protocol: TCP
+            - name: game-55905
+              containerPort: 55905
+              hostPort: 55905
+              protocol: TCP
+            - name: game-55906
+              containerPort: 55906
+              hostPort: 55906
+              protocol: TCP
+          env:
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DB_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: openmu-postgres
+                  key: DB_ADMIN_USER
+            - name: DB_ADMIN_PW
+              valueFrom:
+                secretKeyRef:
+                  name: openmu-postgres
+                  key: DB_ADMIN_PW
+            - name: OPENMU_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: openmu-admin
+                  key: OPENMU_ADMIN_USER
+            - name: OPENMU_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: openmu-admin
+                  key: OPENMU_ADMIN_PASSWORD
+            - name: OPENMU_ADMIN_TOTP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: openmu-admin
+                  key: OPENMU_ADMIN_TOTP_SECRET
+          envFrom:
+            - configMapRef:
+                name: openmu-config
+          volumeMounts:
+            - name: admin-keys
+              mountPath: /app/data-protection-keys
+            - name: logs
+              mountPath: /app/logs
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 400m
+              memory: 1024Mi
+          startupProbe:
+            tcpSocket:
+              port: connect
+            periodSeconds: 10
+            failureThreshold: 90
+          readinessProbe:
+            tcpSocket:
+              port: connect
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: admin
+            periodSeconds: 30
+            failureThreshold: 4
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: admin-keys
+          persistentVolumeClaim:
+            claimName: openmu-admin-keys
+        - name: logs
+          emptyDir: {}

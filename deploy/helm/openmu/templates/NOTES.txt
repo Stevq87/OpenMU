@@ -1,0 +1,30 @@
+1. Tenant namespace: {{ .Release.Namespace }}
+   Server name: {{ .Values.serverName }}
+   One install = one isolated OpenMU server (all-in-one process + PostgreSQL).
+
+2. Admin panel (lab NodePort):
+   kubectl -n {{ .Release.Namespace }} get svc {{ include "openmu.fullname" . }}-admin
+   {{- if and (eq .Values.service.admin.type "NodePort") .Values.service.admin.nodePort }}
+   http://<node-ip>:{{ .Values.service.admin.nodePort }}
+   {{- end }}
+   Bootstrap user: {{ .Values.admin.username }} / (see Secret {{ include "openmu.adminSecretName" . }})
+
+3. Player ports (TCP; OpenMU does not use UDP today):
+   ConnectServer  {{ .Values.ports.connect }} (original client) / {{ .Values.ports.connectOpenSource }} (open-source client)
+   GameServer     {{ range $i, $p := .Values.ports.game }}{{ if $i }}, {{ end }}{{ $p }}{{ end }}
+   ChatServer     {{ .Values.ports.chat }}
+   {{- if .Values.service.hostPort }}
+   Exposure: hostPort on the node. Point the client at the node IP, same port numbers as above.
+   {{- else }}
+   Exposure: Service type {{ .Values.service.type }}. If NodePort, advertised game ports in the OpenMU database must match the nodePorts (or use hostPort).
+   {{- end }}
+
+4. Advertised IP (server selection redirect):
+   {{- if .Values.resolveIP }}
+   RESOLVE_IP={{ .Values.resolveIP }}
+   {{- else }}
+   Empty resolveIP → the pod uses the node's hostIP. Override with --set resolveIP=<public-or-lan-ip> if clients cannot reach hostIP.
+   {{- end }}
+
+5. First start seeds Season 6 and can take several minutes on a small VM. Watch:
+   kubectl -n {{ .Release.Namespace }} logs -l app.kubernetes.io/component=openmu -f
